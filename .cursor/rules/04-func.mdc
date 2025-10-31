@@ -1,0 +1,49 @@
+---
+alwaysApply: false
+---
+아래의 조건 및 주의사항을 모두 적용하여 코드를 작성할 것.
+
+==============================================
+
+- [상수경로]
+  - [URL]: src/commons/constants/url.ts
+
+==============================================
+
+1. JS, HOOKS 조건
+
+   - 모든 기능 및 데이터는 해당 파일 안에서 처리하여, 다른 파일에 의존하지 않도록 구현할 것.
+   - 최소한의 useState, useEffect를 사용할 것.
+   - 복잡한 상태 로직은 useReducer 사용을 고려할 것.
+
+2. 페이지 링크(이동) 조건
+
+   - 페이지 이동은 직접 하드코딩 하지 않고, \* [상수경로]에 제공된 [URL]을 통해서만 이동할 것.
+   - Next.js의 `<Link>` 컴포넌트를 우선 사용하고, 프로그래밍 방식 이동 시 `useRouter`를 사용할 것.
+
+3. 모달 조건
+
+   - commons에 react-portal이 셋팅되어 있다면 사용할 것.
+   - 없다면 필요 시 설정을 요청할 것.
+
+4. 폼, 검증 조건
+
+   - react-hook-form과 zod가 설치되어 있다면 사용할 것.
+   - 없다면 네이티브 React 상태 관리로 폼을 구현할 것.
+   - 복잡한 폼의 경우 설치를 고려할 것.
+
+5. API 조건
+
+   - @tanstack/react-query가 설치되어 있다면 사용할 것.
+   - 없다면 Next.js App Router의 Server Components와 Server Actions를 우선 고려할 것.
+   - 클라이언트 사이드 데이터 페칭이 필요하면 설치를 고려할 것.
+
+6. TEST 조건 (향후 적용 예정)
+   - Playwright가 설치되면 TDD 기반으로 테스트를 먼저 작성할 것.
+   - playwright.config.ts 설정은 변경하지 말 것.
+   - 테스트는 package.json의 scripts에 등록된 명령으로만 실행할 것.
+   - Mock 데이터보다 실제 데이터를 테스트에 사용할 것.
+   - API 테스트 시 응답 결과를 하드코딩하지 말 것.
+   - timeout은 최소화하고, 불가피한 경우 2000ms 미만으로 설정할 것.
+   - page.goto()는 baseUrl을 포함하지 않고 경로만 사용할 것.
+   - page.locator()는 CSS Module과의 충돌을 피하기 위해 data-testid를 사용할 것.
