@@ -1,8 +1,6 @@
 "use client";
 
 import { ArrowLeft } from "lucide-react";
-import { useParams } from "next/navigation";
-import { useMemo } from "react";
 import { useMagazineDetail } from "./hooks/index.func.binding";
 
 const getCategoryColor = (category: string) => {
@@ -20,19 +18,54 @@ const getCategoryColor = (category: string) => {
   return colorMap[category] || "magazine-category-default";
 };
 
-export default function GlossaryCardsDetail() {
+interface PageProps {
+  params: {
+    id: string;
+  };
+}
+
+export default function GlossaryCardsDetail({ params }: PageProps) {
+  const { magazine, loading, error } = useMagazineDetail(params.id);
+
   const onNavigateToList = () => {
     window.location.href = "/magazines";
   };
 
-  const params = useParams();
-  const id = useMemo(() => {
-    const raw = params?.id;
-    if (!raw) return undefined;
-    return Array.isArray(raw) ? raw[0] : String(raw);
-  }, [params]);
+  if (loading) {
+    return (
+      <div className="magazine-detail-container">
+        <div style={{ padding: "2rem", textAlign: "center" }}>
+          <p>로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
 
-  const { data, isLoading, error } = useMagazineDetail(id);
+  if (error || !magazine) {
+    return (
+      <div className="magazine-detail-container">
+        <div style={{ padding: "2rem", textAlign: "center" }}>
+          <p>매거진을 불러오는데 실패했습니다.</p>
+          <p style={{ color: "#ef4444", marginTop: "0.5rem" }}>{error}</p>
+          <button
+            onClick={onNavigateToList}
+            style={{
+              marginTop: "1rem",
+              padding: "0.5rem 1rem",
+              cursor: "pointer",
+            }}
+          >
+            목록으로 돌아가기
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // content를 단락으로 분리 (줄바꿈 기준)
+  const contentParagraphs = magazine.content
+    .split("\n")
+    .filter((p) => p.trim() !== "");
 
   return (
     <div className="magazine-detail-container">
@@ -45,47 +78,47 @@ export default function GlossaryCardsDetail() {
         <div className="magazine-detail-hero">
           <img
             src={
-              data?.image_url ||
+              magazine.image_url ||
               "https://images.unsplash.com/photo-1707989516414-a2394797e0bf?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0ZWNobm9sb2d5JTIwYXJ0aWNsZSUyMG1hZ2F6aW5lfGVufDF8fHx8MTc2MTAzMjYxNHww&ixlib=rb-4.1.0&q=80&w=1080"
             }
-            alt={data?.title || "magazines"}
+            alt={magazine.title}
           />
           <div className="magazine-detail-hero-overlay"></div>
           <div
             className={`magazine-detail-category ${getCategoryColor(
-              data?.category || ""
+              magazine.category
             )}`}
           >
-            {data?.category || ""}
+            {magazine.category}
           </div>
         </div>
 
         <div className="magazine-detail-content-wrapper">
-          {isLoading && <div className="magazine-detail-meta">로딩 중...</div>}
-          {error && <div className="magazine-detail-meta">오류: {error}</div>}
+          <div className="magazine-detail-meta">
+            <span className="magazine-detail-date">최근 업데이트</span>
+          </div>
 
-          <h1 className="magazine-detail-title">{data?.title || ""}</h1>
+          <h1 className="magazine-detail-title">{magazine.title}</h1>
 
-          <p className="magazine-detail-summary">{data?.description || ""}</p>
+          <p className="magazine-detail-summary">{magazine.description}</p>
 
           <div className="magazine-detail-content">
-            {(data?.content || "")
-              .split(/\n\n+/)
-              .filter(Boolean)
-              .map((paragraph, index) => (
-                <p key={index} className="magazine-detail-paragraph">
-                  {paragraph}
-                </p>
-              ))}
-          </div>
-
-          <div className="magazine-detail-tags">
-            {(data?.tags || []).map((tag, index) => (
-              <span key={index} className="magazine-detail-tag">
-                #{tag}
-              </span>
+            {contentParagraphs.map((paragraph, index) => (
+              <p key={index} className="magazine-detail-paragraph">
+                {paragraph}
+              </p>
             ))}
           </div>
+
+          {magazine.tags && magazine.tags.length > 0 && (
+            <div className="magazine-detail-tags">
+              {magazine.tags.map((tag, index) => (
+                <span key={index} className="magazine-detail-tag">
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </article>
 

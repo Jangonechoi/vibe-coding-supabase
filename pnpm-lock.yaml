@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@portone/browser-sdk':
+        specifier: ^0.1.1
+        version: 0.1.1
       '@supabase/supabase-js':
         specifier: ^2.77.0
         version: 2.77.0
@@ -201,6 +204,9 @@ packages:
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
+
+  '@portone/browser-sdk@0.1.1':
+    resolution: {integrity: sha512-5s3153gfgkICYqEo4KKZNIQLTfUBd7vTf0r4+Z8G1B8CQU2mwUw7VVUtdFDhnfABa1TvftErnME6FIgr2sApKQ==}
 
   '@rtsao/scc@1.1.0':
     resolution: {integrity: sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==}
@@ -2000,6 +2006,8 @@ snapshots:
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
+
+  '@portone/browser-sdk@0.1.1': {}
 
   '@rtsao/scc@1.1.0': {}
 

@@ -23,6 +23,10 @@ export default function GlossaryCards() {
   const router = useRouter();
   const { magazines, isLoading, error } = useMagazines();
 
+  const handleCardClick = (id: string) => {
+    router.push(`/magazines/${id}`);
+  };
+
   return (
     <div className="magazine-container">
       <div className="magazine-header">
@@ -55,49 +59,56 @@ export default function GlossaryCards() {
         </div>
       </div>
 
-      <div className="magazine-grid">
-        {isLoading && <div className="magazine-loading">불러오는 중...</div>}
-        {error && !isLoading && <div className="magazine-error">{error}</div>}
-        {!isLoading &&
-          !error &&
-          magazines.map((article) => (
+      {isLoading && (
+        <div className="magazine-loading">
+          <p>데이터를 불러오는 중...</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="magazine-error">
+          <p>오류: {error}</p>
+        </div>
+      )}
+
+      {!isLoading && !error && (
+        <div className="magazine-grid">
+          {magazines.map((magazine) => (
             <article
-              key={article.id}
+              key={magazine.id}
               className="magazine-card"
-              onClick={() => router.push(`/magazines/${article.id}`)}
+              onClick={() => handleCardClick(magazine.id)}
+              style={{ cursor: "pointer" }}
             >
               <div className="magazine-card-image">
-                {article.image_url && (
-                  <img
-                    src={article.image_url}
-                    alt={article.title}
-                    className="magazine-card-image-img"
-                  />
-                )}
+                <img src={magazine.image_url ?? ""} alt={magazine.title} />
                 <div
                   className={`magazine-card-category ${getCategoryColor(
-                    article.category
+                    magazine.category
                   )}`}
                 >
-                  {article.category}
+                  {magazine.category}
                 </div>
               </div>
 
               <div className="magazine-card-content">
-                <h2 className="magazine-card-title">{article.title}</h2>
-                <p className="magazine-card-summary">{article.description}</p>
+                <h2 className="magazine-card-title">{magazine.title}</h2>
+                <p className="magazine-card-summary">{magazine.description}</p>
 
-                <div className="magazine-card-tags">
-                  {(article.tags || []).map((tag, tagIndex) => (
-                    <span key={tagIndex} className="magazine-tag">
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
+                {magazine.tags && magazine.tags.length > 0 && (
+                  <div className="magazine-card-tags">
+                    {magazine.tags.map((tag, tagIndex) => (
+                      <span key={tagIndex} className="magazine-tag">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </article>
           ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
