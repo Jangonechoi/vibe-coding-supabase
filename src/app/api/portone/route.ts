@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
 
 interface SubscriptionRequest {
@@ -51,6 +51,18 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Supabase 클라이언트 생성 (API 라우트에서만 사용)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error("Supabase 환경 변수가 설정되지 않았습니다.");
+      return NextResponse.json(
+        { success: false, error: "서버 설정 오류" },
+        { status: 500 }
+      );
+    }
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
     // 3. 구독결제완료시나리오 (status가 "Paid"인 경우)
     if (body.status === "Paid") {
