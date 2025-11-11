@@ -1,8 +1,10 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 // Supabase 클라이언트 생성 함수 (지연 초기화)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let supabaseInstance: SupabaseClient<any> | null = null;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getSupabaseClient(): SupabaseClient<any> {
   if (supabaseInstance) {
     return supabaseInstance;

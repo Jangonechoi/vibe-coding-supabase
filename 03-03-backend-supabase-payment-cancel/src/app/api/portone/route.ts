@@ -103,6 +103,7 @@ export async function POST(request: NextRequest) {
 // Paid 시나리오 처리 함수
 async function handlePaidScenario(
   paymentId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any>
 ) {
   // 환경 변수 확인
@@ -225,6 +226,7 @@ async function handlePaidScenario(
 // Cancelled 시나리오 처리 함수
 async function handleCancelledScenario(
   paymentId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any>
 ) {
   // 환경 변수 확인
