@@ -27,6 +27,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 1-3. 웹훅 URL 생성 (배포 환경 URL 또는 환경 변수에서 가져오기)
+    const baseUrl =
+      process.env.NEXT_PUBLIC_BASE_URL ||
+      (process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000");
+    const webhookUrl = `${baseUrl}/api/portone`;
+    console.log("웹훅 URL 설정:", webhookUrl);
+
     // 2. 고유한 paymentId 생성 (타임스탬프 + 랜덤)
     const paymentId = `payment_${Date.now()}_${Math.random()
       .toString(36)
@@ -53,6 +62,7 @@ export async function POST(request: NextRequest) {
             total: amount,
           },
           currency: "KRW",
+          webhookUrl, // 웹훅 URL 명시적으로 지정
         }),
       }
     );
@@ -87,4 +97,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
