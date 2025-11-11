@@ -79,20 +79,31 @@ interface PaymentScheduleItem {
 }
 
 export async function POST(request: NextRequest) {
+  const requestId = randomUUID();
+  const startTime = Date.now();
+
   try {
+    console.log(`[${requestId}] 웹훅 요청 시작`);
+
     // 0. 환경 변수 검증 및 클라이언트 초기화
+    console.log(`[${requestId}] 환경 변수 검증 중...`);
     const PORTONE_API_SECRET = getPortoneApiSecret();
     const supabase = getSupabaseClient();
+    console.log(`[${requestId}] 환경 변수 검증 완료`);
 
     // 1. 웹훅 페이로드 파싱
+    console.log(`[${requestId}] 웹훅 페이로드 파싱 중...`);
     const payload: WebhookPayload = await request.json();
-    console.log("포트원 웹훅 수신:", JSON.stringify(payload, null, 2));
+    console.log(
+      `[${requestId}] 포트원 웹훅 수신:`,
+      JSON.stringify(payload, null, 2)
+    );
 
     // payment_id 또는 tx_id 중 하나는 반드시 있어야 함
     const paymentId = payload.payment_id || payload.tx_id;
     if (!paymentId) {
       console.error(
-        "웹훅 페이로드에 payment_id 또는 tx_id가 없습니다:",
+        `[${requestId}] 웹훅 페이로드에 payment_id 또는 tx_id가 없습니다:`,
         payload
       );
       return NextResponse.json(
@@ -102,6 +113,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. 포트원에서 결제 정보 조회 (payment_id 우선, 실패 시 tx_id 시도)
+    console.log(
+      `[${requestId}] 포트원 결제 정보 조회 시작 (paymentId: ${paymentId})`
+    );
     let paymentData: PortonePayment | null = null;
     let lastError: Error | null = null;
 
@@ -114,7 +128,7 @@ export async function POST(request: NextRequest) {
 
     for (const id of idsToTry) {
       try {
-        console.log(`결제 정보 조회 시도 중 (ID: ${id})...`);
+        console.log(`[${requestId}] 결제 정보 조회 시도 중 (ID: ${id})...`);
         const paymentResponse = await fetch(
           `${PORTONE_API_BASE}/payments/${encodeURIComponent(id)}`,
           {
@@ -129,25 +143,31 @@ export async function POST(request: NextRequest) {
         if (paymentResponse.ok) {
           paymentData = await paymentResponse.json();
           console.log(
-            "결제 정보 조회 성공:",
+            `[${requestId}] 결제 정보 조회 성공:`,
             JSON.stringify(paymentData, null, 2)
           );
           break;
         } else {
           const errorText = await paymentResponse.text();
-          console.warn(`결제 정보 조회 실패 (ID: ${id}):`, errorText);
+          console.warn(
+            `[${requestId}] 결제 정보 조회 실패 (ID: ${id}):`,
+            errorText
+          );
           lastError = new Error(
             `포트원 결제 정보 조회 실패: ${paymentResponse.status} - ${errorText}`
           );
         }
       } catch (error) {
-        console.warn(`결제 정보 조회 중 예외 발생 (ID: ${id}):`, error);
+        console.warn(
+          `[${requestId}] 결제 정보 조회 중 예외 발생 (ID: ${id}):`,
+          error
+        );
         lastError = error instanceof Error ? error : new Error(String(error));
       }
     }
 
     if (!paymentData) {
-      console.error("모든 ID로 결제 정보 조회 실패");
+      console.error(`[${requestId}] 모든 ID로 결제 정보 조회 실패`);
       throw lastError || new Error("포트원 결제 정보를 조회할 수 없습니다.");
     }
 
@@ -264,11 +284,18 @@ export async function POST(request: NextRequest) {
       }
 
       // 성공 응답
-      return NextResponse.json({
-        success: true,
-        message: "결제 완료 처리 완료",
-        payment: paymentRecord,
-      });
+      const duration = Date.now() - startTime;
+      console.log(
+        `[${requestId}] 결제 완료 처리 성공 (소요 시간: ${duration}ms)`
+      );
+      return NextResponse.json(
+        {
+          success: true,
+          message: "결제 완료 처리 완료",
+          payment: paymentRecord,
+        },
+        { status: 200 }
+      );
     } else if (payload.status === "Cancelled") {
       // === Cancelled 시나리오 ===
       // 3-1. Supabase에서 기존 결제 정보 조회
@@ -437,14 +464,21 @@ export async function POST(request: NextRequest) {
       }
 
       // 성공 응답
-      return NextResponse.json({
-        success: true,
-        message: "결제 취소 처리 완료",
-        payment: cancelRecord,
-      });
+      const duration = Date.now() - startTime;
+      console.log(
+        `[${requestId}] 결제 취소 처리 성공 (소요 시간: ${duration}ms)`
+      );
+      return NextResponse.json(
+        {
+          success: true,
+          message: "결제 취소 처리 완료",
+          payment: cancelRecord,
+        },
+        { status: 200 }
+      );
     } else {
-      console.log("처리하지 않는 상태:", payload.status);
-      return NextResponse.json({ success: true });
+      console.log(`[${requestId}] 처리하지 않는 상태:`, payload.status);
+      return NextResponse.json({ success: true }, { status: 200 });
     }
   } catch (error) {
     // 더 자세한 에러 로깅
@@ -452,14 +486,18 @@ export async function POST(request: NextRequest) {
       error instanceof Error ? error.message : "알 수 없는 오류";
     const errorStack = error instanceof Error ? error.stack : undefined;
     const errorName = error instanceof Error ? error.name : "UnknownError";
+    const duration = Date.now() - startTime;
 
-    console.error("웹훅 처리 중 오류 발생:", {
-      name: errorName,
-      message: errorMessage,
-      stack: errorStack,
-      error: error,
-      timestamp: new Date().toISOString(),
-    });
+    console.error(
+      `[${requestId}] 웹훅 처리 중 오류 발생 (소요 시간: ${duration}ms):`,
+      {
+        name: errorName,
+        message: errorMessage,
+        stack: errorStack,
+        error: error,
+        timestamp: new Date().toISOString(),
+      }
+    );
 
     // 환경 변수 관련 오류는 프로덕션에서도 상세 정보 제공
     const isEnvError = errorMessage.includes("환경 변수");
