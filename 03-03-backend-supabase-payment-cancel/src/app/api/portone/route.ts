@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
-import axios from "axios";
 
 // Supabase 클라이언트 생성
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -272,26 +271,36 @@ async function handleCancelledScenario(paymentId: string) {
 
     console.log("예약된 결제정보 조회 중...");
     try {
-      const scheduleResponse = await axios.get<PaymentScheduleResponse>(
-        `${PORTONE_API_BASE}/payment-schedules`,
+      // 쿼리 파라미터 생성
+      const queryParams = new URLSearchParams({
+        "filter.billingKey": paymentData.billingKey,
+        "filter.from": fromDate.toISOString(),
+        "filter.until": untilDate.toISOString(),
+      });
+
+      const scheduleResponse = await fetch(
+        `${PORTONE_API_BASE}/payment-schedules?${queryParams.toString()}`,
         {
+          method: "GET",
           headers: {
             "Content-Type": "application/json",
             Authorization: `PortOne ${PORTONE_API_SECRET}`,
           },
-          data: {
-            filter: {
-              billingKey: paymentData.billingKey,
-              from: fromDate.toISOString(),
-              until: untilDate.toISOString(),
-            },
-          },
         }
       );
 
+      if (!scheduleResponse.ok) {
+        const errorText = await scheduleResponse.text();
+        console.error("포트원 스케줄 조회 실패:", errorText);
+        throw new Error(`포트원 스케줄 조회 실패: ${scheduleResponse.status}`);
+      }
+
+      const scheduleData: PaymentScheduleResponse =
+        await scheduleResponse.json();
+
       // 3-2-2) 예약된 결제정보의 조회결과 items를 순회하여 schedule객체의 id를 추출
       // 조건: items.paymentId === 조회결과.next_schedule_id
-      const targetSchedule = scheduleResponse.data.items.find(
+      const targetSchedule = scheduleData.items.find(
         (item) => item.paymentId === existingPayment.next_schedule_id
       );
 
