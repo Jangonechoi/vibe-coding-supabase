@@ -9,17 +9,20 @@ const PORTONE_API_BASE = "https://api.portone.io";
 // Supabase 및 포트원 클라이언트 생성 함수
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseServiceKey) {
     throw new Error(
-      "Supabase 환경 변수가 설정되지 않았습니다. NEXT_PUBLIC_SUPABASE_URL과 SUPABASE_SERVICE_ROLE_KEY(또는 NEXT_PUBLIC_SUPABASE_ANON_KEY)를 확인해주세요."
+      "Supabase 환경 변수가 설정되지 않았습니다. NEXT_PUBLIC_SUPABASE_URL과 SUPABASE_SERVICE_ROLE_KEY를 확인해주세요. 웹훅 처리에는 서비스 역할 키가 필수입니다."
     );
   }
 
-  return createClient(supabaseUrl, supabaseServiceKey);
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
 }
 
 function getPortoneApiSecret() {
@@ -39,12 +42,13 @@ interface WebhookPayload {
 
 interface PortonePayment {
   id: string;
+  paymentId?: string; // 포트원 API 응답에 따라 다를 수 있음
   amount: {
     total: number;
   };
-  orderName: string;
+  orderName?: string; // 필수가 아닐 수 있음
   billingKey?: string;
-  customer: {
+  customer?: {
     id: string;
   };
   scheduleId?: string;
@@ -131,10 +135,17 @@ export async function POST(request: NextRequest) {
 
     // 결제 데이터 필수 필드 검증
     if (!paymentData.amount?.total) {
+      console.error("결제 데이터 구조:", JSON.stringify(paymentData, null, 2));
       throw new Error("결제 정보에 amount.total이 없습니다.");
     }
     if (!paymentData.customer?.id) {
-      throw new Error("결제 정보에 customer.id가 없습니다.");
+      console.warn("결제 정보에 customer.id가 없습니다. 기본값 사용");
+      // customer.id가 없어도 계속 진행 (기본값 사용)
+      if (!paymentData.customer) {
+        paymentData.customer = { id: "unknown" };
+      } else {
+        paymentData.customer.id = paymentData.customer.id || "unknown";
+      }
     }
 
     // 3. 상태에 따른 처리 분기
@@ -195,6 +206,9 @@ export async function POST(request: NextRequest) {
       if (paymentData.billingKey) {
         console.log("다음 달 구독 예약 중...");
 
+        // orderName이 없으면 기본값 사용
+        const orderName = paymentData.orderName || "IT 매거진 월간 구독";
+
         const scheduleResponse = await fetch(
           `${PORTONE_API_BASE}/payments/${nextScheduleId}/schedule`,
           {
@@ -206,9 +220,9 @@ export async function POST(request: NextRequest) {
             body: JSON.stringify({
               payment: {
                 billingKey: paymentData.billingKey,
-                orderName: paymentData.orderName,
+                orderName: orderName,
                 customer: {
-                  id: paymentData.customer.id,
+                  id: paymentData.customer?.id || "unknown",
                 },
                 amount: {
                   total: paymentData.amount.total,
@@ -240,19 +254,56 @@ export async function POST(request: NextRequest) {
     } else if (payload.status === "Cancelled") {
       // === Cancelled 시나리오 ===
       // 3-1. Supabase에서 기존 결제 정보 조회
-      console.log("Supabase에서 기존 결제 정보 조회 중...");
-      const { data: existingPayment, error: selectError } = await supabase
-        .from("payment")
-        .select("*")
-        .eq("transaction_key", paymentId)
-        .eq("status", "Paid")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+      console.log("Supabase에서 기존 결제 정보 조회 중...", {
+        transaction_key: paymentId,
+      });
 
-      if (selectError || !existingPayment) {
+      // payment_id와 tx_id 둘 다 시도
+      let existingPayment = null;
+      let selectError = null;
+
+      // 먼저 payment_id로 시도
+      if (payload.payment_id) {
+        const { data, error } = await supabase
+          .from("payment")
+          .select("*")
+          .eq("transaction_key", payload.payment_id)
+          .eq("status", "Paid")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!error && data) {
+          existingPayment = data;
+        } else {
+          selectError = error;
+        }
+      }
+
+      // payment_id로 찾지 못했으면 tx_id로 시도
+      if (!existingPayment && payload.tx_id) {
+        console.log("payment_id로 찾지 못해 tx_id로 재시도...");
+        const { data, error } = await supabase
+          .from("payment")
+          .select("*")
+          .eq("transaction_key", payload.tx_id)
+          .eq("status", "Paid")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!error && data) {
+          existingPayment = data;
+        } else {
+          selectError = error;
+        }
+      }
+
+      if (!existingPayment) {
         console.error("기존 결제 정보 조회 실패:", selectError);
-        throw new Error("취소할 결제 정보를 찾을 수 없습니다.");
+        throw new Error(
+          `취소할 결제 정보를 찾을 수 없습니다. (transaction_key: ${paymentId})`
+        );
       }
 
       console.log("기존 결제 정보 조회 성공:", existingPayment);
@@ -382,21 +433,27 @@ export async function POST(request: NextRequest) {
     const errorMessage =
       error instanceof Error ? error.message : "알 수 없는 오류";
     const errorStack = error instanceof Error ? error.stack : undefined;
+    const errorName = error instanceof Error ? error.name : "UnknownError";
 
     console.error("웹훅 처리 중 오류 발생:", {
+      name: errorName,
       message: errorMessage,
       stack: errorStack,
       error: error,
+      timestamp: new Date().toISOString(),
     });
+
+    // 프로덕션에서는 상세 정보를 숨기고 간단한 메시지만 반환
+    const isDevelopment = process.env.NODE_ENV === "development";
 
     return NextResponse.json(
       {
         success: false,
-        error: errorMessage,
-        // 개발 환경에서만 스택 트레이스 포함
-        ...(process.env.NODE_ENV === "development" && errorStack
-          ? { stack: errorStack }
-          : {}),
+        error: isDevelopment
+          ? errorMessage
+          : "웹훅 처리 중 오류가 발생했습니다.",
+        ...(isDevelopment && errorStack ? { stack: errorStack } : {}),
+        ...(isDevelopment ? { name: errorName } : {}),
       },
       { status: 500 }
     );
