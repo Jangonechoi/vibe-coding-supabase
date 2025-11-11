@@ -9,23 +9,21 @@ const PORTONE_API_BASE = "https://api.portone.io";
 // Supabase 및 포트원 클라이언트 생성 함수
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   // 누락된 환경 변수를 명확히 표시
   const missingVars: string[] = [];
   if (!supabaseUrl) {
     missingVars.push("NEXT_PUBLIC_SUPABASE_URL");
   }
-  if (!supabaseServiceKey) {
-    missingVars.push("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseAnonKey) {
+    missingVars.push("NEXT_PUBLIC_SUPABASE_ANON_KEY");
   }
 
   if (missingVars.length > 0) {
     const errorMessage = `Supabase 환경 변수가 설정되지 않았습니다. 누락된 변수: ${missingVars.join(
       ", "
-    )}. 웹훅 처리에는 서비스 역할 키가 필수입니다! 현재 환경: ${
-      process.env.NODE_ENV || "unknown"
-    }`;
+    )}. 현재 환경: ${process.env.NODE_ENV || "unknown"}`;
     console.error("환경 변수 체크 실패:", {
       missingVars,
       allEnvVars: Object.keys(process.env).filter((key) =>
@@ -37,7 +35,7 @@ function getSupabaseClient() {
   }
 
   // 타입 단언: 위에서 이미 체크했으므로 undefined가 아님
-  return createClient(supabaseUrl!, supabaseServiceKey!, {
+  return createClient(supabaseUrl!, supabaseAnonKey!, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -463,17 +461,21 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
 
-    // 프로덕션에서는 상세 정보를 숨기고 간단한 메시지만 반환
+    // 환경 변수 관련 오류는 프로덕션에서도 상세 정보 제공
+    const isEnvError = errorMessage.includes("환경 변수");
     const isDevelopment = process.env.NODE_ENV === "development";
 
     return NextResponse.json(
       {
         success: false,
-        error: isDevelopment
-          ? errorMessage
-          : "웹훅 처리 중 오류가 발생했습니다.",
-        ...(isDevelopment && errorStack ? { stack: errorStack } : {}),
-        ...(isDevelopment ? { name: errorName } : {}),
+        error:
+          isDevelopment || isEnvError
+            ? errorMessage
+            : "웹훅 처리 중 오류가 발생했습니다.",
+        ...((isDevelopment || isEnvError) && errorStack
+          ? { stack: errorStack }
+          : {}),
+        ...(isDevelopment || isEnvError ? { name: errorName } : {}),
       },
       { status: 500 }
     );
