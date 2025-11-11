@@ -1,17 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
 
-// Supabase 클라이언트 생성
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
 // 포트원 API 설정
-const PORTONE_API_SECRET = process.env.PORTONE_API_SECRET!;
 const PORTONE_API_BASE = "https://api.portone.io";
+
+// Supabase 클라이언트 생성 함수
+function getSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl) {
+    throw new Error(
+      "NEXT_PUBLIC_SUPABASE_URL 환경 변수가 설정되지 않았습니다."
+    );
+  }
+
+  if (!supabaseServiceKey) {
+    throw new Error(
+      "SUPABASE_SERVICE_ROLE_KEY 또는 NEXT_PUBLIC_SUPABASE_ANON_KEY 환경 변수가 설정되지 않았습니다."
+    );
+  }
+
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
 
 // 타입 정의
 interface WebhookPayload {
@@ -43,6 +57,18 @@ interface PaymentScheduleResponse {
 
 export async function POST(request: NextRequest) {
   try {
+    // 환경 변수 검증
+    const PORTONE_API_SECRET = process.env.PORTONE_API_SECRET;
+    if (!PORTONE_API_SECRET) {
+      return NextResponse.json(
+        { success: false, error: "PORTONE_API_SECRET이 설정되지 않았습니다." },
+        { status: 500 }
+      );
+    }
+
+    // Supabase 클라이언트 생성
+    const supabase = getSupabaseClient();
+
     // 1. 웹훅 페이로드 파싱
     const payload: WebhookPayload = await request.json();
     console.log("포트원 웹훅 수신:", payload);
@@ -51,12 +77,12 @@ export async function POST(request: NextRequest) {
 
     // 2. Paid 시나리오 처리
     if (payload.status === "Paid") {
-      return await handlePaidScenario(paymentId);
+      return await handlePaidScenario(paymentId, supabase);
     }
 
     // 3. Cancelled 시나리오 처리
     if (payload.status === "Cancelled") {
-      return await handleCancelledScenario(paymentId);
+      return await handleCancelledScenario(paymentId, supabase);
     }
 
     // 4. 알 수 없는 상태
@@ -75,7 +101,16 @@ export async function POST(request: NextRequest) {
 }
 
 // Paid 시나리오 처리 함수
-async function handlePaidScenario(paymentId: string) {
+async function handlePaidScenario(
+  paymentId: string,
+  supabase: SupabaseClient<any>
+) {
+  // 환경 변수 확인
+  const PORTONE_API_SECRET = process.env.PORTONE_API_SECRET;
+  if (!PORTONE_API_SECRET) {
+    throw new Error("PORTONE_API_SECRET이 설정되지 않았습니다.");
+  }
+
   // 2-1) paymentId의 결제정보를 조회
   console.log("결제 정보 조회 중:", paymentId);
   const paymentResponse = await fetch(
@@ -188,7 +223,16 @@ async function handlePaidScenario(paymentId: string) {
 }
 
 // Cancelled 시나리오 처리 함수
-async function handleCancelledScenario(paymentId: string) {
+async function handleCancelledScenario(
+  paymentId: string,
+  supabase: SupabaseClient<any>
+) {
+  // 환경 변수 확인
+  const PORTONE_API_SECRET = process.env.PORTONE_API_SECRET;
+  if (!PORTONE_API_SECRET) {
+    throw new Error("PORTONE_API_SECRET이 설정되지 않았습니다.");
+  }
+
   // 3-1) 구독결제취소시나리오
   // 3-1-1) paymentId의 결제정보를 조회
   console.log("결제 정보 조회 중:", paymentId);
