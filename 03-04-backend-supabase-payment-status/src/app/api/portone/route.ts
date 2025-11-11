@@ -199,10 +199,19 @@ export async function POST(request: NextRequest) {
       const endGraceAt = new Date(now);
       endGraceAt.setDate(endGraceAt.getDate() + 31);
 
-      // next_schedule_at: end_at + 1일 오전 10시~11시 사이 임의 시각
-      const nextScheduleAt = new Date(endAt);
-      nextScheduleAt.setDate(nextScheduleAt.getDate() + 1);
-      nextScheduleAt.setHours(10, Math.floor(Math.random() * 60), 0, 0); // 10시 00분 ~ 10시 59분
+      // next_schedule_at: end_at + 1일 오전 10시~11시 사이 임의 시각 (한국시간으로 계산하되, UTC시간으로 저장)
+      // end_at + 1일의 날짜를 UTC 기준으로 계산
+      const nextScheduleDate = new Date(endAt);
+      nextScheduleDate.setUTCDate(nextScheduleDate.getUTCDate() + 1);
+
+      // 한국시간(KST, UTC+9) 기준으로 10시~11시 사이의 임의 시각 생성
+      // 10시 00분부터 11시 00분 전까지 (0~60분 사이 랜덤)
+      const kstHour = 10; // 한국시간 10시
+      const kstMinute = Math.floor(Math.random() * 60); // 0~59분 랜덤 (10:00~10:59)
+
+      // 한국시간을 UTC로 변환하여 설정 (한국시간 - 9시간 = UTC)
+      const nextScheduleAt = new Date(nextScheduleDate);
+      nextScheduleAt.setUTCHours(kstHour - 9, kstMinute, 0, 0); // 한국시간 10시 = UTC 01시
 
       const nextScheduleId = randomUUID();
 
