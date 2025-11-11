@@ -13,7 +13,7 @@ function getSupabaseClient() {
 
   if (!supabaseUrl || !supabaseServiceKey) {
     throw new Error(
-      "Supabase 환경 변수가 설정되지 않았습니다. NEXT_PUBLIC_SUPABASE_URL과 SUPABASE_SERVICE_ROLE_KEY를 확인해주세요. 웹훅 처리에는 서비스 역할 키가 필수입니다."
+      "Supabase 환경 변수가 설정되지 않았습니다. NEXT_PUBLIC_SUPABASE_URL과 SUPABASE_SERVICE_ROLE_KEY를 확인해주세요. 웹훅 처리에는 서비스 역할 키가 필수입니다!"
     );
   }
 
