@@ -16,10 +16,11 @@ interface UsePaymentStatusReturn {
 /**
  * 결제 상태 조회 훅
  *
- * 1. payment 테이블에서 transaction_key로 그룹화
- * 2. 각 그룹에서 created_at 최신 1건씩 추출
- * 3. status === "Paid"이고 start_at <= 현재시각 <= end_grace_at인 것만 필터링
- * 4. 결과에 따라 구독 상태 반환
+ * 1. payment 테이블에서 모든 레코드 조회 (취소된 결제 포함)
+ * 2. transaction_key로 그룹화
+ * 3. 각 그룹에서 created_at 최신 1건씩 추출 (최신 레코드의 status가 실제 현재 상태)
+ * 4. 최신 레코드 중 status === "Paid"이고 start_at <= 현재시각 <= end_grace_at인 것만 필터링
+ * 5. 결과에 따라 구독 상태 반환
  */
 export const usePaymentStatus = (): UsePaymentStatusReturn => {
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>({
@@ -34,11 +35,11 @@ export const usePaymentStatus = (): UsePaymentStatusReturn => {
     setError(null);
 
     try {
-      // 1. payment 테이블에서 status가 'Paid'인 모든 레코드 조회
+      // 1. payment 테이블에서 모든 레코드 조회 (status 필터링 없이)
+      // 취소된 결제도 포함하여 최신 상태를 확인하기 위함
       const { data: payments, error: fetchError } = await supabase
         .from("payment")
         .select("transaction_key, status, start_at, end_grace_at, created_at")
-        .eq("status", "Paid")
         .order("created_at", { ascending: false });
 
       if (fetchError) {
@@ -65,6 +66,7 @@ export const usePaymentStatus = (): UsePaymentStatusReturn => {
       }, {} as Record<string, typeof payments>);
 
       // 3. 각 그룹에서 created_at 최신 1건씩 추출
+      // 이 최신 레코드의 status가 실제 현재 상태를 나타냄
       const latestPayments = Object.values(groupedByTransactionKey).map(
         (group) => {
           // created_at 기준으로 내림차순 정렬되어 있으므로 첫 번째 항목이 최신
@@ -75,8 +77,15 @@ export const usePaymentStatus = (): UsePaymentStatusReturn => {
       // 4. 현재 시각
       const now = new Date();
 
-      // 5. start_at <= 현재시각 <= end_grace_at 조건 필터링
+      // 5. 최신 레코드 중에서 다음 조건을 만족하는 것만 필터링:
+      //    - status === "Paid" (취소되지 않은 결제)
+      //    - start_at <= 현재시각 <= end_grace_at (유효 기간 내)
       const activePayments = latestPayments.filter((payment) => {
+        // 최신 레코드의 status가 "Paid"가 아니면 제외 (취소됨)
+        if (payment.status !== "Paid") {
+          return false;
+        }
+
         const startAt = new Date(payment.start_at);
         const endGraceAt = new Date(payment.end_grace_at);
 
